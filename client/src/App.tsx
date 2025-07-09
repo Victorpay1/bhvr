@@ -1,50 +1,102 @@
 import { useState } from 'react'
-import beaver from './assets/beaver.svg'
-import type { ApiResponse } from 'shared'
 import './App.css'
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3000"
+interface Tweet {
+  id: string
+  url: string
+  text: string
+  author: string
+  createdAt: string
+}
 
 function App() {
-  const [data, setData] = useState<ApiResponse | undefined>()
+  const [keyword, setKeyword] = useState('')
+  const [tweets, setTweets] = useState<Tweet[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  async function sendRequest() {
+  const searchTweets = async () => {
+    if (!keyword.trim()) {
+      setError('Please enter a keyword')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    
     try {
-      const req = await fetch(`${SERVER_URL}/hello`)
-      const res: ApiResponse = await req.json()
-      setData(res)
-    } catch (error) {
-      console.log(error)
+      const response = await fetch('/api/search-tweets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ keyword: keyword.trim() })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to search tweets')
+      }
+
+      const data = await response.json()
+      setTweets(data.tweets)
+    } catch (err) {
+      setError('Failed to search tweets. Please try again.')
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <>
-      <div>
-        <a href="https://github.com/stevedylandev/bhvr" target="_blank">
-          <img src={beaver} className="logo" alt="beaver logo" />
-        </a>
+    <div className="app">
+      <h1>🐦 Twitter Brand Monitor</h1>
+      
+      <div className="search-section">
+        <input
+          type="text"
+          placeholder="Enter keyword to search..."
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              searchTweets()
+            }
+          }}
+        />
+        <button onClick={searchTweets} disabled={loading}>
+          {loading ? 'Searching...' : 'Search'}
+        </button>
       </div>
-      <h1>bhvr</h1>
-      <h2>Bun + Hono + Vite + React</h2>
-      <p>A typesafe fullstack monorepo</p>
-      <div className="card">
-        <div className='button-container'>
-          <button onClick={sendRequest}>
-            Call API
-          </button>
-          <a className='docs-link' target='_blank' href="https://bhvr.dev">Docs</a>
-        </div>
-        {data && (
-          <pre className='response'>
-            <code>
-            Message: {data.message} <br />
-            Success: {data.success.toString()}
-            </code>
-          </pre>
-        )}
-      </div>
-    </>
+
+      {error && <p className="error">{error}</p>}
+
+      {tweets.length > 0 && (
+        <table className="tweets-table">
+          <thead>
+            <tr>
+              <th>Twitter URL</th>
+              <th>Tweet Text</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tweets.map(tweet => (
+              <tr key={tweet.id}>
+                <td>
+                  <a href={tweet.url} target="_blank" rel="noopener noreferrer">
+                    View Tweet
+                  </a>
+                </td>
+                <td>{tweet.text}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {tweets.length === 0 && !loading && !error && (
+        <p className="no-tweets">Enter a keyword above to search for tweets</p>
+      )}
+    </div>
   )
 }
 
