@@ -1,0 +1,17 @@
+$ concurrently "bun run dev:shared" "bun run dev:server" "bun run dev:client"
+[0] $ cd shared && bun run dev
+[1] $ cd server && bun run dev
+[2] $ cd client && bun run dev
+[0] $ tsc --watch
+[1] $ bun --watch run src/index.ts
+[2] $ vite
+[0] [2J[3J[H8:29:28 AM - Starting compilation in watch mode...
+[0] 
+[1] Started development server: http://localhost:3000
+[2] 
+[2]   VITE v6.3.5  ready in 199 ms
+[2] 
+[2]   ➜  Local:   http://localhost:5173/
+[2]   ➜  Network: use --host to expose
+[0] 
+[0] 8:29:29 AM - Found 0 errors. Watching for file changes.
