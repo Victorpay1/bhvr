@@ -22,7 +22,7 @@ app.get('/hello', async (c) => {
 
 app.post('/api/search-tweets', async (c) => {
   try {
-    const { keyword } = await c.req.json()
+    const { keyword, dateFilter } = await c.req.json()
     
     if (!keyword) {
       return c.json({ error: 'Keyword is required' }, 400)
@@ -33,6 +33,33 @@ app.post('/api/search-tweets', async (c) => {
     if (!apiToken) {
       return c.json({ error: 'API token not configured' }, 500)
     }
+
+    // Calculate date filter
+    let startDate = null
+    if (dateFilter && dateFilter !== 'all') {
+      const today = new Date()
+      if (dateFilter === '7days') {
+        startDate = new Date(today.setDate(today.getDate() - 7))
+      } else if (dateFilter === '2weeks') {
+        startDate = new Date(today.setDate(today.getDate() - 14))
+      } else if (dateFilter === '3weeks') {
+        startDate = new Date(today.setDate(today.getDate() - 21))
+      }
+    }
+
+    // Build request body
+    const requestBody: any = {
+      searchTerms: [keyword],
+      sort: 'Latest',
+      maxItems: 50,
+      onlyVerifiedUsers: false,
+      onlyTwitterBlue: false
+    }
+
+    // Add date filter if specified
+    if (startDate) {
+      requestBody.start = startDate.toISOString().split('T')[0] // Format: YYYY-MM-DD
+    }
     
     // Run Apify Twitter scraper
     const runResponse = await fetch('https://api.apify.com/v2/acts/apidojo~tweet-scraper/runs?token=' + apiToken, {
@@ -40,13 +67,7 @@ app.post('/api/search-tweets', async (c) => {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        searchTerms: [keyword],
-        sort: 'Latest',
-        maxItems: 50,
-        onlyVerifiedUsers: false,
-        onlyTwitterBlue: false
-      })
+      body: JSON.stringify(requestBody)
     })
 
     if (!runResponse.ok) {
@@ -79,14 +100,21 @@ app.post('/api/search-tweets', async (c) => {
     const resultsResponse = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${apiToken}&limit=50`)
     const results = await resultsResponse.json() as any[]
 
-    // Format the tweets
-    const tweets = results.map((item: any) => ({
-      id: item.id || item.url,
-      url: item.url,
-      text: item.text || item.full_text || '',
-      author: item.author?.name || item.author?.username || 'Unknown',
-      createdAt: item.createdAt || item.created_at || ''
-    }))
+    // Format and filter the tweets
+    const tweets = results
+      .map((item: any) => ({
+        id: item.id || item.url,
+        url: item.url,
+        text: item.text || item.full_text || '',
+        author: item.author?.name || item.author?.username || 'Unknown',
+        createdAt: item.createdAt || item.created_at || ''
+      }))
+      .filter((tweet) => {
+        // Only include tweets that actually contain the search keyword
+        const tweetText = tweet.text.toLowerCase()
+        const searchKeyword = keyword.toLowerCase()
+        return tweetText.includes(searchKeyword)
+      })
 
     return c.json({ tweets })
   } catch (error) {

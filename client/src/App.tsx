@@ -14,6 +14,8 @@ function App() {
   const [tweets, setTweets] = useState<Tweet[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [dateFilter, setDateFilter] = useState('all')
+  const [loadingMessage, setLoadingMessage] = useState('Searching Twitter...')
 
   const searchTweets = async () => {
     if (!keyword.trim()) {
@@ -23,6 +25,16 @@ function App() {
 
     setLoading(true)
     setError('')
+    setLoadingMessage('Searching Twitter...')
+    
+    // Update loading messages
+    const messageTimer = setInterval(() => {
+      setLoadingMessage(prev => {
+        if (prev === 'Searching Twitter...') return 'Gathering tweets...'
+        if (prev === 'Gathering tweets...') return 'Almost done...'
+        return prev
+      })
+    }, 2000)
     
     try {
       const response = await fetch('/api/search-tweets', {
@@ -30,7 +42,7 @@ function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ keyword: keyword.trim() })
+        body: JSON.stringify({ keyword: keyword.trim(), dateFilter })
       })
 
       if (!response.ok) {
@@ -43,6 +55,7 @@ function App() {
       setError('Failed to search tweets. Please try again.')
       console.error(err)
     } finally {
+      clearInterval(messageTimer)
       setLoading(false)
     }
   }
@@ -51,6 +64,19 @@ function App() {
     <div className="app">
       <h1>🐦 Twitter Brand Monitor</h1>
       
+      <div className="filter-section">
+        <select 
+          value={dateFilter} 
+          onChange={(e) => setDateFilter(e.target.value)}
+          className="date-filter"
+        >
+          <option value="all">All time</option>
+          <option value="7days">Last 7 days</option>
+          <option value="2weeks">Last 2 weeks</option>
+          <option value="3weeks">Last 3 weeks</option>
+        </select>
+      </div>
+
       <div className="search-section">
         <input
           type="text"
@@ -64,18 +90,33 @@ function App() {
           }}
         />
         <button onClick={searchTweets} disabled={loading}>
-          {loading ? 'Searching...' : 'Search'}
+          {loading ? (
+            <span className="loading-button">
+              <span className="spinner"></span>
+              Searching...
+            </span>
+          ) : 'Search'}
         </button>
       </div>
 
       {error && <p className="error">{error}</p>}
 
-      {tweets.length > 0 && (
+      {loading && (
+        <div className="loading-overlay">
+          <div className="loading-content">
+            <div className="loading-spinner"></div>
+            <p className="loading-text">{loadingMessage}</p>
+          </div>
+        </div>
+      )}
+
+      {tweets.length > 0 && !loading && (
         <table className="tweets-table">
           <thead>
             <tr>
               <th>Twitter URL</th>
               <th>Tweet Text</th>
+              <th>Posted On</th>
             </tr>
           </thead>
           <tbody>
@@ -87,6 +128,14 @@ function App() {
                   </a>
                 </td>
                 <td>{tweet.text}</td>
+                <td>{new Date(tweet.createdAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true
+                })}</td>
               </tr>
             ))}
           </tbody>
